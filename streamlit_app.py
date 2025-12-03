@@ -5,93 +5,109 @@ import time
 import random
 
 # ==============================
-# INIT STATE
+# GAME STATE
 # ==============================
-GRID = 10
-CELL = 40
+GRID_SIZE = 10
+CELL_SIZE = 40
+FPS = 0.3  # ความเร็วงู
 
-if "snake" not in st.session_state:
+if 'snake' not in st.session_state:
     st.session_state.snake = [(5,5)]
-if "dir" not in st.session_state:
-    st.session_state.dir = (0,1)  # start moving right
-if "food" not in st.session_state:
-    st.session_state.food = (random.randint(0,GRID-1), random.randint(0,GRID-1))
-if "score" not in st.session_state:
+if 'direction' not in st.session_state:
+    st.session_state.direction = (0,1)  # dx, dy
+if 'food' not in st.session_state:
+    st.session_state.food = (random.randint(0,GRID_SIZE-1), random.randint(0,GRID_SIZE-1))
+if 'score' not in st.session_state:
     st.session_state.score = 0
-if "game_over" not in st.session_state:
+if 'game_over' not in st.session_state:
     st.session_state.game_over = False
-if "speed" not in st.session_state:
-    st.session_state.speed = 0.3
 
 # ==============================
 # MOVE SNAKE
 # ==============================
 def move_snake():
-    if st.session_state.game_over: return
-    head = st.session_state.snake[-1]
-    new_head = (head[0]+st.session_state.dir[0], head[1]+st.session_state.dir[1])
-    
-    # wall collision
-    if not (0 <= new_head[0] < GRID and 0 <= new_head[1] < GRID) or new_head in st.session_state.snake:
+    if st.session_state.game_over:
+        return
+    head_x, head_y = st.session_state.snake[-1]
+    dx, dy = st.session_state.direction
+    new_head = (head_x + dx, head_y + dy)
+
+    # ตรวจสอบชนตัวเอง / ชนขอบ
+    if (new_head in st.session_state.snake) or not (0 <= new_head[0] < GRID_SIZE) or not (0 <= new_head[1] < GRID_SIZE):
         st.session_state.game_over = True
         return
-    
+
     st.session_state.snake.append(new_head)
-    
-    # eat food
+
+    # ตรวจสอบกินอาหาร
     if new_head == st.session_state.food:
         st.session_state.score += 1
         while True:
-            st.session_state.food = (random.randint(0,GRID-1), random.randint(0,GRID-1))
-            if st.session_state.food not in st.session_state.snake: break
+            new_food = (random.randint(0,GRID_SIZE-1), random.randint(0,GRID_SIZE-1))
+            if new_food not in st.session_state.snake:
+                st.session_state.food = new_food
+                break
     else:
-        st.session_state.snake.pop(0)
+        st.session_state.snake.pop(0)  # เคลื่อนที่ไปข้างหน้า
+
+# ==============================
+# CONTROL BUTTONS
+# ==============================
+col1,col2,col3 = st.columns(3)
+with col1:
+    if st.button("⬆️"):
+        if st.session_state.direction != (1,0):
+            st.session_state.direction = (-1,0)
+with col2:
+    if st.button("⬅️"):
+        if st.session_state.direction != (0,1):
+            st.session_state.direction = (0,-1)
+    if st.button("➡️"):
+        if st.session_state.direction != (0,-1):
+            st.session_state.direction = (0,1)
+with col3:
+    if st.button("⬇️"):
+        if st.session_state.direction != (-1,0):
+            st.session_state.direction = (1,0)
 
 # ==============================
 # DRAW BOARD
 # ==============================
 def draw_board():
-    board = np.zeros((GRID*CELL, GRID*CELL,3),dtype=np.uint8)+50
-    # snake
+    board = np.zeros((GRID_SIZE*CELL_SIZE, GRID_SIZE*CELL_SIZE, 3), dtype=np.uint8)
+    board[:,:,:] = [50,50,50]  # background gray
+
+    # วาดอาหาร
+    fx, fy = st.session_state.food
+    board[fy*CELL_SIZE:fy*CELL_SIZE+CELL_SIZE, fx*CELL_SIZE:fx*CELL_SIZE+CELL_SIZE] = [255,0,0]
+
+    # วาดงู
     for x,y in st.session_state.snake:
-        board[y*CELL:y*CELL+CELL, x*CELL:x*CELL+CELL] = [0,255,0]
-    # food
-    fx,fy = st.session_state.food
-    board[fy*CELL:fy*CELL+CELL, fx*CELL:fx*CELL+CELL] = [255,0,0]
+        board[y*CELL_SIZE:y*CELL_SIZE+CELL_SIZE, x*CELL_SIZE:x*CELL_SIZE+CELL_SIZE] = [0,255,0]
+
+    # grid lines
+    for i in range(GRID_SIZE):
+        board[i*CELL_SIZE:i*CELL_SIZE+1,:] = [80,80,80]
+        board[:,i*CELL_SIZE:i*CELL_SIZE+1] = [80,80,80]
+
     return board
 
 # ==============================
-# UI
+# GAME LOOP
 # ==============================
-st.title("🐍 Snake Grid - Simple Version")
 st.write(f"Score: {st.session_state.score}")
 
-# control buttons
-cols = st.columns(4)
-with cols[0]:
-    if st.button("⬆️"): st.session_state.dir = (0,-1)
-with cols[1]:
-    if st.button("⬅️"): st.session_state.dir = (-1,0)
-with cols[2]:
-    if st.button("➡️"): st.session_state.dir = (1,0)
-with cols[3]:
-    if st.button("⬇️"): st.session_state.dir = (0,1)
-
-# speed slider
-st.session_state.speed = st.slider("Game speed", 0.05, 0.5, st.session_state.speed, 0.05)
-
-# restart
 if st.session_state.game_over:
-    if st.button("Restart"):
+    st.warning("💀 Game Over! Press R to Restart")
+    if st.button("🔄 Restart"):
         st.session_state.snake = [(5,5)]
-        st.session_state.dir = (0,1)
-        st.session_state.food = (random.randint(0,GRID-1), random.randint(0,GRID-1))
+        st.session_state.direction = (0,1)
+        st.session_state.food = (random.randint(0,GRID_SIZE-1), random.randint(0,GRID_SIZE-1))
         st.session_state.score = 0
         st.session_state.game_over = False
-
-# game loop
-move_snake()
-board = draw_board()
-st.image(board, width=GRID*CELL)
-
-time
+else:
+    move_snake()
+    board = draw_board()
+    st.image(board)
+    time.sleep(FPS)
+    st.experimental_rerun()
